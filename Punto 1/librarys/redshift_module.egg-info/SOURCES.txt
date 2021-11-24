@@ -1,0 +1,8 @@
+setup.py
+C:/Users/Felipe Velasquez/Dropbox/My PC (DESKTOP-1LIROPU)/Documents/Octavo Semestre 2021/Big Data/env/Lib/site-packages/_virtualenv.py
+C:/Users/Felipe Velasquez/Dropbox/My PC (DESKTOP-1LIROPU)/Documents/Octavo Semestre 2021/Big Data/env/Lib/site-packages/six.py
+redshift_module.egg-info/PKG-INFO
+redshift_module.egg-info/SOURCES.txt
+redshift_module.egg-info/dependency_links.txt
+redshift_module.egg-info/requires.txt
+redshift_module.egg-info/top_level.txt
