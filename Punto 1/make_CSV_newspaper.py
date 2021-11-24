@@ -129,7 +129,7 @@ def saveS3(filename):
     year=today.year
     month=today.month
     day=today.day
-    urlsave= f'headlines/final/periodico={nameNews}/year={year}/month={month}/day={day}/{filename}'
+    urlsave= f'headlines/final/periodico={nameNews}/year={year}/month={month}/day={day-1}/{filename}'
     s3 = boto3.resource('s3')
     s3.meta.client.upload_file(f'/tmp/{filename}', 'csvnews',urlsave)
     
