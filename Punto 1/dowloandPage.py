@@ -12,7 +12,7 @@ month=today.month
 day=today.day
 
 # Newspaper url's
-news=[('El_Tiempo','https://www.eltiempo.com/'),('El_Espectador','https://www.elespectador.com/')]
+news=[('El_Tiempo','https://www.eltiempo.com/'),('Publimetro','https://www.publimetro.co')]
 for i in news:
         # Newspaper HTML
         page = requests.get(i[1])
@@ -23,6 +23,6 @@ for i in news:
             web.write(page.text)
 
         #save in s3
-        ruta=f'headlines/raw/periodico={i[0]}/year={year}/month={month}/day={day-1}/{i[0]}.html'
+        ruta=f'headlines/raw/periodico={i[0]}/year={year}/month={month}/day={day}/{i[0]}.html'
         s3 = boto3.resource('s3')
         s3.meta.client.upload_file(filesave, 'newspaperstructure', ruta)

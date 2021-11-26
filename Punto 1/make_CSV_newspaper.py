@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta
-from io import StringIO
-import json
 import boto3
 from bs4 import BeautifulSoup
+import requests
 import csv
-import ntpath
+
+tiempoURL = "https://www.eltiempo.com"
+publimetroURL = "https://www.publimetro.co"
 
 def dowloand_structure(periodic):
     today = datetime.now()
@@ -12,74 +13,44 @@ def dowloand_structure(periodic):
     month=today.month
     day=today.day
     archivo=f'{periodic}.html'
-    ruta=f'headlines/raw/periodico={periodic}/year={year}/month={month}/day={day-1}/{periodic}.html'
+    ruta=f'headlines/raw/periodico={periodic}/year={year}/month={month}/day={day}/{periodic}.html'
     s3 = boto3.resource('s3')
     s3.meta.client.download_file('newspaperstructure', ruta, f'/tmp/{periodic}.html')
-    file = open(f'/tmp/{periodic}.html',"r",encoding='utf-8')
-    archivoBS = BeautifulSoup(file.read(), 'html.parser')
-    titles = list()
-    categories = list()
-    urls = list()
-    ind=""
-    if archivo=='El_Tiempo.html': 
-        executeTiempo(archivoBS,archivo)
-        ind="ET"
-    else:
-        executeEspectador(archivoBS,archivo)
- 
-def executeTiempo(archivoBS,archivo):
-    titles = list()
-    categories = list()
-    urls = list()
-    communET = archivoBS.find_all('a', class_='title')
 
-    # Begins the scraping for "El Tiempo"
-    newsTitles(communET)
-    newsCategories(communET, "ET")
-    newsUrls(communET, "ET")
-    generateCSV(categories, titles, urls, "El Tiempo.csv")
-    
-    urlSave="/tmp/"+archivo.replace('html','csv')
-    generateCSV(categories, titles, urls, urlSave)
-    saveS3(archivo.replace('html','csv'))
+dowloand_structure('El_Tiempo')
+dowloand_structure('Publimetro')
+file = open(r'/tmp/El_Tiempo.html',"r",encoding='utf-8')
+tiempoBS = BeautifulSoup(file.read(), 'html.parser')
+file = open(r'/tmp/Publimetro.html',"r",encoding='utf-8')
+publimetroBS = BeautifulSoup(file.read(), 'html.parser')
 
 
-def executePublimetro(archivoBS,archivo):
-    titles = list()
-    categories = list()
-    urls = list()
-    print('Starting publimetro scraping')
-    titleClassv1 = archivoBS.find_all('a', class_='headline')
-    titleClassv2 = archivoBS.find_all('a', class_='card-list--headline-link')
-    titleClassv3 = archivoBS.find_all('a', class_='sm-promo-headline')
-    titleClassv4 = archivoBS.find_all('div', class_='results-list--headline-container')
-    titleClass = [titleClassv1, titleClassv2, titleClassv3, titleClassv4]
 
-    # Begins the scraping for "Publimetro"
-    neasted = False
-    for titleList in titleClass:
-        if titleClass[3] == True: neasted = True
-        newsTitles(titleList, nested_a = neasted)
-        newsCategories(titleList, newspaper="PB", nested_a = neasted)
-        newsUrls(titleList, nested_a = neasted)
-    print('Starting publimetro scraping')
-    urlSave="/tmp/"+archivo.replace('html','csv')
-    generateCSV(categories, titles, urls, urlSave)
-    saveS3(archivo.replace('html','csv'))
+def normalize(s): #Function to 
+    replacements = (
+        ("á", "a"),
+        ("é", "e"),
+        ("í", "i"),
+        ("ó", "o"),
+        ("ú", "u"),
+    )
+    for a, b in replacements:
+        s = s.replace(a, b).replace(a.upper(), b.upper())
+    return s
 
-# Newspaper url's
-tiempoURL = "https://www.eltiempo.com"
-publimetroURL = "https://www.publimetro.co"
+# Lists
+titles = list()
+categories = list()
+urls = list()
 
-def newsTitles (titleClass, titles, nested_a = False):
+def newsTitles (titleClass, nested_a = False):
     for title in titleClass:
         if nested_a:
             titleScraped = titles.find('a')
             titles.append(titleScraped.text)
         else: titles.append(title.text)
-    return titles
 
-def newsCategories (categoryClass, categories, newspaper = "", nested_a = False):
+def newsCategories (categoryClass, newspaper = "", nested_a = False):
     for category in categoryClass:
         if nested_a:
             scrapedCategory = category.find('a')['href']
@@ -92,10 +63,9 @@ def newsCategories (categoryClass, categories, newspaper = "", nested_a = False)
                 else: categories.append(txt[1])
             else: categories.append("No category")
         else: categories.append(txt[1]+"/"+txt[2])
-    return categories
 
 
-def newsUrls (urlClass, urls, newspaper = "", nested_a = False):
+def newsUrls (urlClass, newspaper = "", nested_a = False):
     for url in urlClass: 
         if nested_a:
             scrapedURL = url.find('a')['href']
@@ -103,7 +73,7 @@ def newsUrls (urlClass, urls, newspaper = "", nested_a = False):
             scrapedURL = url.get('href','')
         if newspaper == "ET": urls.append(tiempoURL+scrapedURL)
         else:  urls.append(publimetroURL+scrapedURL)
-    return urls
+
 
 def generateCSV(categories, titles, urls, fileName):
     print(len(categories),len(titles), len(urls))
@@ -114,7 +84,7 @@ def generateCSV(categories, titles, urls, fileName):
         row = [categories[i], titles[i], urls[i]]
         rows.append(row)
 
-    with open(fileName, 'w', encoding="utf-8") as f:
+    with open(f'/tmp/{fileName}', 'w', encoding="utf-8") as f:
         write = csv.writer(f)
         write.writerow(fields)
         write.writerows(rows)
@@ -125,15 +95,42 @@ def generateCSV(categories, titles, urls, fileName):
     urls.clear()
 
 def saveS3(filename):
-    nameNews=filename.replace('csv','')
+    nameNews=filename.replace('.csv','')
     today = datetime.now()
     year=today.year
     month=today.month
     day=today.day
-    urlsave= f'headlines/final/periodico={nameNews}/year={year}/month={month}/day={day-1}/{filename}'
+    urlsave= f'headlines/final/periodico={nameNews}/year={year}/month={month}/day={day}/{filename}'
     s3 = boto3.resource('s3')
     s3.meta.client.upload_file(f'/tmp/{filename}', 'csvnews',urlsave)
-    
 
-dowloand_structure('El_Tiempo')
-dowloand_structure('Publimetro')
+
+""" El Tiempo """
+communET = tiempoBS.find_all('a', class_='title')
+
+# Begins the scraping for "El Tiempo"
+newsTitles(communET)
+newsCategories(communET, "ET")
+newsUrls(communET, "ET")
+filename='El_Tiempo.csv'
+generateCSV(categories, titles, urls, filename)
+saveS3(filename)
+
+""" Publimetro """
+titleClassv1 = publimetroBS.find_all('a', class_='headline')
+titleClassv2 = publimetroBS.find_all('a', class_='card-list--headline-link')
+titleClassv3 = publimetroBS.find_all('a', class_='sm-promo-headline')
+titleClassv4 = publimetroBS.find_all('div', class_='results-list--headline-container')
+titleClass = [titleClassv1, titleClassv2, titleClassv3, titleClassv4]
+
+# Begins the scraping for "Publimetro"
+neasted = False
+for titleList in titleClass:
+    if titleClass[3] == True: neasted = True
+    newsTitles(titleList, nested_a = neasted)
+    newsCategories(titleList, newspaper="PB", nested_a = neasted)
+    newsUrls(titleList, nested_a = neasted)
+filename='Publimetro.csv'
+generateCSV(categories, titles, urls,filename)
+saveS3(filename)
+
